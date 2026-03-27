@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskNova v6 — Personal Productivity</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+<style>
+:root{
+  --bg:#080c14;--surface:#0e1520;--surface2:#131c2b;--border:#1e2d42;
+  --accent:#00d4ff;--accent2:#7c3aed;--accent3:#10b981;
+  --warn:#f59e0b;--danger:#ef4444;--text:#e2eaf5;--muted:#617a96;
+  --glow:0 0 24px rgba(0,212,255,0.35);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100vh;display:flex;overflow:hidden;}
+
+/* ── OVERLAY ── */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(10px);
+  display:none;place-items:center;z-index:9999;}
+#overlay.show{display:grid;}
+.ov-card{background:var(--surface);border:2px solid var(--accent);border-radius:28px;
+  padding:44px 60px;text-align:center;animation:popIn .4s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 0 80px rgba(0,212,255,.2);max-width:460px;}
+@keyframes popIn{from{opacity:0;transform:scale(.65);}to{opacity:1;transform:scale(1);}}
+.ov-emoji{font-size:76px;display:block;margin-bottom:14px;animation:bobble .65s ease infinite alternate;}
+@keyframes bobble{from{transform:translateY(0) rotate(-3deg);}to{transform:translateY(-14px) rotate(3deg);}}
+.ov-title{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;}
+.ov-sub{font-size:15px;color:var(--muted);margin-top:8px;line-height:1.5;}
+.ov-btn{background:var(--accent);color:var(--bg);border:none;padding:11px 32px;border-radius:30px;
+  font-size:15px;font-weight:700;font-family:'Syne',sans-serif;cursor:pointer;margin-top:20px;
+  transition:all .2s;}
+.ov-btn:hover{background:#33deff;box-shadow:var(--glow);}
+
+/* ── GOOD JOB BANNER ── */
+#gj-banner{position:fixed;top:76px;left:50%;transform:translateX(-50%) translateY(-130px);
+  background:linear-gradient(135deg,#10b981,#00d4ff);color:#fff;border-radius:40px;
+  padding:14px 38px;font-family:'Syne',sans-serif;font-size:17px;font-weight:800;z-index:8800;
+  transition:transform .65s cubic-bezier(.34,1.56,.64,1);box-shadow:0 8px 36px rgba(16,185,129,.45);
+  white-space:nowrap;pointer-events:none;}
+#gj-banner.show{transform:translateX(-50%) translateY(0);}
+
+/* ── SIDEBAR ── */
+.sidebar{width:236px;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:22px 14px;gap:5px;flex-shrink:0;}
+.logo{font-family:'Syne',sans-serif;font-size:21px;font-weight:800;color:var(--accent);
+  text-shadow:var(--glow);margin-bottom:18px;padding-left:8px;letter-spacing:-.5px;}
+.logo span{color:var(--text);}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;
+  cursor:pointer;font-size:13.5px;color:var(--muted);transition:all .2s;font-weight:500;
+  border:1px solid transparent;}
+.nav-item:hover,.nav-item.active{background:rgba(0,212,255,.08);color:var(--accent);
+  border-color:rgba(0,212,255,.2);}
+.nav-icon{font-size:16px;width:20px;text-align:center;}
+.sb-footer{margin-top:auto;padding:14px;
+  background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(0,212,255,.1));
+  border:1px solid rgba(124,58,237,.3);border-radius:14px;}
+.sb-score-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.sb-score-val{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--accent2);}
+.sb-trend{font-size:11px;color:var(--muted);margin-bottom:8px;}
+.badges{display:flex;gap:5px;flex-wrap:wrap;}
+
+/* ── TOPBAR ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{padding:13px 22px;border-bottom:1px solid var(--border);display:flex;
+  align-items:center;gap:11px;background:var(--surface);flex-shrink:0;}
+.topbar h1{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;}
+.focus-btn{display:flex;align-items:center;gap:7px;background:rgba(239,68,68,.12);
+  border:1px solid rgba(239,68,68,.35);color:#ef4444;padding:7px 14px;border-radius:20px;
+  font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;font-weight:600;}
+.focus-btn.active{background:rgba(239,68,68,.25);box-shadow:0 0 18px rgba(239,68,68,.3);}
+#focus-time-display{font-family:'Syne',sans-serif;font-weight:800;min-width:46px;}
+.info-pill{background:var(--surface2);border:1px solid var(--border);padding:6px 13px;
+  border-radius:20px;font-size:12px;font-weight:600;}
+.break-pill{color:var(--warn);border-color:rgba(245,158,11,.3);}
+.date-pill{color:var(--muted);margin-left:auto;}
+
+/* ── TABS ── */
+.tab-bar{display:flex;gap:3px;padding:11px 22px 0;background:var(--surface);
+  border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;}
+.tab-bar::-webkit-scrollbar{display:none;}
+.tab{padding:7px 16px;border-radius:9px 9px 0 0;cursor:pointer;font-size:13px;
+  color:var(--muted);font-weight:500;transition:all .2s;border:1px solid transparent;
+  border-bottom:none;white-space:nowrap;}
+.tab.active{background:var(--bg);color:var(--accent);border-color:var(--border);}
+.tab:hover:not(.active){color:var(--text);}
+
+/* ── CONTENT PANES ── */
+.pane{flex:1;overflow-y:auto;padding:20px 22px;display:none;}
+.pane.active{display:block;}
+.pane::-webkit-scrollbar{width:4px;}
+.pane::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* ── LAYOUT GRIDS ── */
+.g2{display:grid;grid-template-columns:1fr 310px;gap:18px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:18px;}
+
+/* ── PANELS ── */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:17px;margin-bottom:18px;animation:fadeUp .4s ease backwards;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.p-title{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;
+  letter-spacing:1px;color:var(--muted);margin-bottom:13px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;}
+
+/* ── STAT CARDS ── */
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:13px;
+  padding:15px;position:relative;overflow:hidden;}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.s-blue::before{background:var(--accent);}
+.s-green::before{background:var(--accent3);}
+.s-amber::before{background:var(--warn);}
+.s-purple::before{background:var(--accent2);}
+.s-val{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;line-height:1;}
+.s-blue .s-val{color:var(--accent);}
+.s-green .s-val{color:var(--accent3);}
+.s-amber .s-val{color:var(--warn);}
+.s-purple .s-val{color:var(--accent2);}
+.s-lbl{font-size:11px;color:var(--muted);margin-top:5px;font-weight:500;}
+
+/* ── TASKS ── */
+.task-row{display:flex;gap:7px;margin-bottom:13px;flex-wrap:wrap;}
+.t-inp{flex:1;min-width:150px;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:9px 12px;border-radius:9px;font-size:13.5px;
+  font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
+.t-inp:focus{border-color:var(--accent);}
+.t-inp::placeholder{color:var(--muted);}
+.t-sel{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:9px 8px;border-radius:9px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;}
+.btn-add{background:var(--accent);color:var(--bg);border:none;padding:9px 17px;border-radius:9px;
+  font-size:13.5px;font-weight:700;font-family:'Syne',sans-serif;cursor:pointer;
+  transition:all .2s;white-space:nowrap;}
+.btn-add:hover{background:#33deff;box-shadow:var(--glow);}
+
+@keyframes taskGlow{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,212,255,0);}
+  50%{box-shadow:0 0 0 5px rgba(0,212,255,.22);}
+}
+.task-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;
+  border:1px solid var(--border);margin-bottom:7px;background:var(--surface2);
+  transition:all .2s;animation:slideIn .3s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+.task-item:hover{border-color:rgba(0,212,255,.25);}
+.task-item.hl{border-color:rgba(0,212,255,.55);animation:taskGlow 1.8s ease infinite,slideIn .3s ease;}
+.task-item.done{opacity:.42;}
+.task-item.done .t-text{text-decoration:line-through;}
+.t-chk{width:19px;height:19px;border-radius:50%;border:2px solid var(--border);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-size:10px;}
+.t-chk.on{background:var(--accent3);border-color:var(--accent3);}
+.t-text{flex:1;font-size:13.5px;}
+.pri-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;
+  text-transform:uppercase;letter-spacing:.4px;}
+.pb-high{background:rgba(239,68,68,.15);color:#ef4444;}
+.pb-medium{background:rgba(245,158,11,.15);color:#f59e0b;}
+.pb-low{background:rgba(16,185,129,.15);color:#10b981;}
+.t-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;
+  padding:2px 5px;border-radius:5px;transition:all .2s;}
+.t-del:hover{background:rgba(239,68,68,.12);color:#ef4444;}
+
+/* ── PROGRESS RING ── */
+.ring-wrap{display:flex;flex-direction:column;align-items:center;padding:4px 0;}
+.ring-outer{position:relative;width:108px;height:108px;}
+.ring-outer svg{transform:rotate(-90deg);}
+.ring-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+.ring-pct{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--accent);}
+.ring-lbl{font-size:10px;color:var(--muted);}
+#ring-arc{stroke:var(--accent);transition:stroke-dashoffset .9s ease;}
+.ring-stats{display:flex;justify-content:space-around;margin-top:11px;width:100%;}
+.rs-item{text-align:center;}
+.rs-val{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;}
+.rs-sub{font-size:10px;color:var(--muted);}
+
+/* ── SCHEDULE ── */
+.sched-item{display:flex;gap:9px;align-items:flex-start;padding:9px 8px;
+  border-bottom:1px solid var(--border);cursor:default;transition:all .2s;border-radius:7px;}
+.sched-item:last-child{border-bottom:none;}
+.sched-item.now{background:rgba(0,212,255,.06);border-color:rgba(0,212,255,.2);}
+.s-time{font-family:'Syne',sans-serif;font-size:11px;color:var(--muted);width:44px;flex-shrink:0;padding-top:2px;}
+.s-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+.s-info{flex:1;}
+.s-name{font-size:13px;font-weight:500;}
+.s-tag{font-size:11px;color:var(--muted);margin-top:1px;}
+.s-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;
+  padding:2px 5px;border-radius:4px;}
+.s-del:hover{color:var(--danger);}
+.add-sched-row{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap;}
+.s-inp{flex:1;min-width:90px;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:7px 9px;border-radius:8px;font-size:12px;
+  font-family:'DM Sans',sans-serif;outline:none;}
+.s-inp:focus{border-color:var(--accent3);}
+.s-inp::placeholder{color:var(--muted);}
+
+/* ── CALENDAR ── */
+.cal-wrap{max-width:460px;margin:0 auto;}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.cal-nav-btn{background:none;border:none;color:var(--muted);cursor:pointer;
+  font-size:20px;padding:4px 8px;border-radius:6px;transition:color .2s;}
+.cal-nav-btn:hover{color:var(--text);}
+.cal-month{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.cal-hdr{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px;}
+.cal-day{text-align:center;padding:7px 3px;border-radius:8px;font-size:13px;
+  cursor:pointer;transition:all .2s;border:1px solid transparent;position:relative;}
+.cal-day:hover{background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.2);}
+.cal-day.today{background:var(--accent);color:var(--bg);font-weight:700;}
+.cal-day.sel{background:rgba(124,58,237,.25);border-color:var(--accent2);}
+.cal-day.has-t::after{content:'';position:absolute;bottom:3px;left:50%;
+  transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent3);}
+.cal-day.empty{color:var(--border);cursor:default;}
+.cal-day-panel{max-width:460px;margin:16px auto 0;}
+
+/* ── CHATBOT ── */
+.chat-shell{background:var(--surface);border:1px solid rgba(124,58,237,.3);border-radius:16px;
+  display:flex;flex-direction:column;overflow:hidden;}
+.chat-hdr{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;
+  align-items:center;gap:9px;background:linear-gradient(135deg,rgba(124,58,237,.13),rgba(0,212,255,.06));}
+.chat-av{width:30px;height:30px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+  animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,.4);}
+  50%{box-shadow:0 0 0 8px rgba(124,58,237,0);}}
+.chat-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;}
+.chat-status{font-size:10px;color:var(--accent3);}
+.chat-msgs{overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px;}
+.chat-msgs::-webkit-scrollbar{width:3px;}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);}
+.msg{max-width:88%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;
+  animation:msgIn .25s ease;white-space:pre-wrap;}
+@keyframes msgIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);}}
+.msg.bot{background:var(--surface2);border:1px solid var(--border);
+  align-self:flex-start;border-bottom-left-radius:4px;}
+.msg.user{background:linear-gradient(135deg,var(--accent2),#5b21b6);
+  color:white;align-self:flex-end;border-bottom-right-radius:4px;}
+.msg.typing{color:var(--muted);font-style:italic;}
+.chat-inp-row{padding:8px 10px;border-top:1px solid var(--border);display:flex;gap:7px;}
+.chat-inp{flex:1;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:7px 11px;border-radius:8px;font-size:13px;
+  font-family:'DM Sans',sans-serif;outline:none;}
+.chat-inp:focus{border-color:var(--accent2);}
+.chat-inp::placeholder{color:var(--muted);}
+.chat-send{background:var(--accent2);border:none;color:white;padding:7px 13px;
+  border-radius:8px;cursor:pointer;font-size:14px;transition:all .2s;}
+.chat-send:hover{background:#6d28d9;}
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:0 10px 8px;}
+.chip{background:var(--surface2);border:1px solid var(--border);padding:3px 9px;
+  border-radius:20px;font-size:11px;color:var(--muted);cursor:pointer;transition:all .2s;}
+.chip:hover{border-color:var(--accent2);color:var(--accent2);}
+
+/* ── ANALYTICS ── */
+.chart-wrap{position:relative;height:260px;margin-top:8px;}
+.eod-card{background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(0,212,255,.08));
+  border:1px solid rgba(16,185,129,.3);border-radius:16px;padding:20px;text-align:center;
+  margin-bottom:18px;}
+.eod-num{font-family:'Syne',sans-serif;font-size:60px;font-weight:800;color:var(--accent3);line-height:1;}
+.eod-sub{font-size:13px;color:var(--muted);margin-top:5px;}
+.eod-msg{font-size:16px;font-weight:600;margin-top:10px;}
+.btn-sm{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;
+  transition:all .2s;}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+
+
+/* ── PHONE ALERT BANNER ── */
+#phone-alert-bar{
+  position:fixed;top:0;left:0;right:0;z-index:10000;
+  background:linear-gradient(90deg,#ef4444,#b91c1c);
+  color:#fff;text-align:center;padding:11px 16px;
+  font-family:'Syne',sans-serif;font-size:15px;font-weight:800;
+  display:none;letter-spacing:.4px;
+  animation:redFlash .55s infinite alternate;}
+#phone-alert-bar.show{display:block;}
+@keyframes redFlash{from{opacity:1;}to{opacity:.55;}}
+.ph-chip{display:inline-block;background:rgba(255,255,255,.18);
+  border-radius:20px;padding:2px 12px;margin-left:10px;font-size:12px;}
+
+/* ── VIDEO OVERLAY CANVAS ── */
+.vid-wrap{position:relative;display:inline-block;width:100%;}
+#cam-video{width:100%;border-radius:9px;background:#000;max-height:190px;
+  object-fit:cover;display:block;}
+#det-canvas{position:absolute;top:0;left:0;width:100%;height:100%;
+  border-radius:9px;pointer-events:none;}
+
+/* ── MODEL BADGE & DETECTED CARD ── */
+#model-badge{margin-left:auto;font-size:11px;color:var(--muted);}
+#phone-det-card{display:none;margin-top:10px;padding:12px;
+  background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);
+  border-radius:9px;text-align:center;}
+.model-loading-bar{margin-top:10px;padding:9px 12px;
+  background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);
+  border-radius:8px;font-size:12px;color:var(--warn);}
+
+/* ── FOCUS GUARD (self-use) ── */
+.cam-panel{background:var(--surface2);border:1px solid rgba(0,212,255,.2);
+  border-radius:13px;padding:13px;margin-top:14px;}
+.cam-hdr{display:flex;align-items:center;gap:9px;margin-bottom:10px;}
+.cam-dot{width:9px;height:9px;border-radius:50%;transition:background .3s;}
+.cam-dot.on{background:#ef4444;animation:blink 1s infinite;}
+.cam-dot.off{background:var(--border);}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
+#cam-video{width:100%;border-radius:9px;background:#000;max-height:170px;
+  object-fit:cover;display:block;}
+.cam-status{font-size:12px;color:var(--muted);margin-top:8px;text-align:center;}
+.guard-log-item{padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text);}
+.stat2{background:var(--surface2);border-radius:10px;padding:13px;text-align:center;}
+.stat2-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;}
+.stat2-lbl{font-size:11px;color:var(--muted);margin-top:3px;}
+
+/* ── RANGE TOGGLE ── */
+.range-toggle{display:flex;gap:5px;margin-bottom:10px;}
+.range-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);
+  padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;
+  font-family:'DM Sans',sans-serif;transition:all .2s;}
+.range-btn.active{background:rgba(0,212,255,.1);border-color:var(--accent);color:var(--accent);}
+</style>
+</head>
+<body>
+
+<!-- OVERLAY -->
+<div id="overlay">
+  <div class="ov-card">
+    <span class="ov-emoji" id="ov-emoji">🎉</span>
+    <div class="ov-title" id="ov-title">Amazing!</div>
+    <div class="ov-sub" id="ov-sub">You crushed it today!</div>
+    <button class="ov-btn" onclick="closeOverlay()">Let's go! ✨</button>
+  </div>
+</div>
+
+<!-- PHONE ALERT BAR -->
+<div id="phone-alert-bar">
+  📱 PHONE DETECTED — Remove phone to stop alarm!
+  <span class="ph-chip">Focus Guard Active</span>
+</div>
+
+<!-- GOOD JOB BANNER -->
+<div id="gj-banner">⚡ GOOD JOB — 1-Hour Focus Session Active! You've got this!</div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">Task<span>Nova</span></div>
+  <div class="nav-item active" onclick="gotoTab('dashboard',this)"><span class="nav-icon">⚡</span>Dashboard</div>
+  <div class="nav-item" onclick="gotoTab('tasks',this)"><span class="nav-icon">✅</span>My Tasks</div>
+  <div class="nav-item" onclick="gotoTab('schedule',this)"><span class="nav-icon">📅</span>Schedule</div>
+  <div class="nav-item" onclick="gotoTab('calendar',this)"><span class="nav-icon">🗓️</span>Calendar</div>
+  <div class="nav-item" onclick="gotoTab('analytics',this)"><span class="nav-icon">📊</span>Analytics</div>
+  <div class="nav-item" onclick="gotoTab('chat',this)"><span class="nav-icon">🤖</span>AI Assistant</div>
+  <div class="nav-item" onclick="gotoTab('guard',this)"><span class="nav-icon">👁️</span>Focus Guard</div>
+  <div class="sb-footer">
+    <div class="sb-score-lbl">My Score</div>
+    <div class="sb-score-val" id="sb-score">0</div>
+    <div class="sb-trend" id="sb-trend">Today</div>
+    <div class="badges">🔥⭐🌅🎯💪</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <h1 id="view-title">Dashboard</h1>
+    <button class="focus-btn" id="focus-btn" onclick="toggleFocus()">
+      ⏱️ Focus: <span id="focus-time-display">60:00</span> <span id="focus-icon">▶</span>
+    </button>
+    <div class="info-pill break-pill">☕ Breaks: <span id="break-count">0</span></div>
+    <div class="info-pill date-pill" id="date-pill"></div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-bar">
+    <div class="tab active" id="tab-dashboard" onclick="gotoTab('dashboard',this)">Dashboard</div>
+    <div class="tab" id="tab-tasks" onclick="gotoTab('tasks',this)">Tasks</div>
+    <div class="tab" id="tab-schedule" onclick="gotoTab('schedule',this)">Schedule</div>
+    <div class="tab" id="tab-calendar" onclick="gotoTab('calendar',this)">Calendar</div>
+    <div class="tab" id="tab-analytics" onclick="gotoTab('analytics',this)">Analytics</div>
+    <div class="tab" id="tab-chat" onclick="gotoTab('chat',this)">AI Chat</div>
+    <div class="tab" id="tab-guard" onclick="gotoTab('guard',this)">Focus Guard</div>
+  </div>
+
+  <!-- ═══════════════════ DASHBOARD ═══════════════════ -->
+  <div class="pane active" id="pane-dashboard">
+    <div class="g4">
+      <div class="stat s-blue"><div class="s-val" id="d-total">0</div><div class="s-lbl">Total Tasks</div></div>
+      <div class="stat s-green"><div class="s-val" id="d-done">0</div><div class="s-lbl">Completed</div></div>
+      <div class="stat s-amber"><div class="s-val" id="d-pending">0</div><div class="s-lbl">Pending</div></div>
+      <div class="stat s-purple"><div class="s-val" id="d-score">0</div><div class="s-lbl">Score Today</div></div>
+    </div>
+    <div class="g2">
+      <div>
+        <div class="panel">
+          <div class="p-title">Priority Tasks <span style="font-size:11px;color:var(--accent)" id="focus-hl-badge" style="display:none"></span></div>
+          <div id="dash-tasks"></div>
+        </div>
+        <div class="panel">
+          <div class="p-title">Today's Schedule <span style="font-size:11px;color:var(--accent3)" id="now-sched"></span></div>
+          <div id="dash-sched"></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <div class="p-title">Progress</div>
+          <div class="ring-wrap">
+            <div class="ring-outer">
+              <svg width="108" height="108" viewBox="0 0 108 108">
+                <circle cx="54" cy="54" r="46" fill="none" stroke="var(--border)" stroke-width="9"/>
+                <circle id="ring-arc" cx="54" cy="54" r="46" fill="none" stroke="var(--accent)"
+                  stroke-width="9" stroke-dasharray="289" stroke-dashoffset="289" stroke-linecap="round"/>
+              </svg>
+              <div class="ring-center">
+                <div class="ring-pct" id="ring-pct">0%</div>
+                <div class="ring-lbl">done</div>
+              </div>
+            </div>
+            <div class="ring-stats">
+              <div class="rs-item"><div class="rs-val" style="color:var(--accent3)" id="rs-done">0</div><div class="rs-sub">Done</div></div>
+              <div class="rs-item"><div class="rs-val" style="color:var(--warn)" id="rs-left">0</div><div class="rs-sub">Left</div></div>
+              <div class="rs-item"><div class="rs-val" style="color:var(--danger)" id="rs-over">0</div><div class="rs-sub">Overdue</div></div>
+            </div>
+          </div>
+        </div>
+        <!-- mini chat -->
+        <div class="chat-shell" style="height:320px;">
+          <div class="chat-hdr">
+            <div class="chat-av">🤖</div>
+            <div><div class="chat-name">Nova AI</div><div class="chat-status">● Online</div></div>
+          </div>
+          <div class="chips">
+            <div class="chip" onclick="quickChat('Plan my day')">📅 Plan</div>
+            <div class="chip" onclick="quickChat('What should I focus on?')">🎯 Focus</div>
+            <div class="chip" onclick="quickChat('Motivate me')">⚡ Boost</div>
+          </div>
+          <div class="chat-msgs" id="mini-msgs" style="height:180px;"></div>
+          <div class="chat-inp-row">
+            <input class="chat-inp" id="mini-inp" placeholder="Ask Nova…" onkeydown="if(event.key==='Enter')miniSend()">
+            <button class="chat-send" onclick="miniSend()">➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TASKS ═══════════════════ -->
+  <div class="pane" id="pane-tasks">
+    <div class="panel">
+      <div class="p-title">My Tasks
+        <span id="focus-task-badge" style="font-size:11px;color:var(--accent);display:none">⚡ Focus ON — tasks highlighted</span>
+      </div>
+      <div class="task-row">
+        <input class="t-inp" id="t-inp" placeholder="Add a new task…" onkeydown="if(event.key==='Enter')addTask()">
+        <select class="t-sel" id="t-pri">
+          <option value="high">🔴 High</option>
+          <option value="medium" selected>🟡 Medium</option>
+          <option value="low">🟢 Low</option>
+        </select>
+        <input class="t-inp" id="t-date" type="date" style="max-width:148px;">
+        <button class="btn-add" onclick="addTask()">+ Add</button>
+      </div>
+      <div id="task-list"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ SCHEDULE ═══════════════════ -->
+  <div class="pane" id="pane-schedule">
+    <div class="panel">
+      <div class="p-title">Today's Schedule
+        <span style="font-size:11px;color:var(--muted)">🔔 Alarm on slot change</span>
+      </div>
+      <div id="sched-list"></div>
+      <div class="add-sched-row">
+        <input class="s-inp" id="si-time" type="time">
+        <input class="s-inp" id="si-title" placeholder="Event title" style="flex:2;">
+        <input class="s-inp" id="si-tag" placeholder="Tag" style="flex:1.2;">
+        <select class="t-sel" id="si-color" style="font-size:12px;">
+          <option value="#00d4ff">🔵 Blue</option>
+          <option value="#7c3aed">🟣 Purple</option>
+          <option value="#f59e0b">🟡 Amber</option>
+          <option value="#10b981">🟢 Green</option>
+          <option value="#ef4444">🔴 Red</option>
+        </select>
+        <button class="btn-add" onclick="addSchedItem()" style="font-size:12px;padding:8px 14px;">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ CALENDAR ═══════════════════ -->
+  <div class="pane" id="pane-calendar">
+    <div class="panel cal-wrap">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calMonth(-1)">‹</button>
+        <div class="cal-month" id="cal-month"></div>
+        <button class="cal-nav-btn" onclick="calMonth(1)">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+    <div class="panel cal-day-panel" id="cal-day-panel" style="display:none;max-width:460px;margin:0 auto;">
+      <div class="p-title" id="cal-day-title">Tasks</div>
+      <div id="cal-day-tasks"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ ANALYTICS ═══════════════════ -->
+  <div class="pane" id="pane-analytics">
+    <div class="g2">
+      <div>
+        <div class="eod-card">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">End-of-Day Score</div>
+          <div class="eod-num" id="eod-num">0</div>
+          <div class="eod-sub">/ 100 points</div>
+          <div class="eod-msg" id="eod-msg">Complete tasks to build your score!</div>
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap;">
+            <button class="btn-sm" onclick="saveScore()">💾 Save Today</button>
+            <button class="btn-sm" onclick="clearDay()">🔄 New Day</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="p-title">Week Summary</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="stat2"><div class="stat2-val" style="color:var(--accent)" id="wk-sessions">0</div><div class="stat2-lbl">Focus Sessions</div></div>
+            <div class="stat2"><div class="stat2-val" style="color:var(--warn)" id="wk-breaks">0</div><div class="stat2-lbl">Total Breaks</div></div>
+            <div class="stat2"><div class="stat2-val" style="color:var(--accent3)" id="wk-tasks">0</div><div class="stat2-lbl">Tasks Done</div></div>
+            <div class="stat2"><div class="stat2-val" style="color:var(--accent2)" id="wk-best">0</div><div class="stat2-lbl">Best Score</div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <div class="p-title">Productivity Score — Bar Chart</div>
+          <div class="range-toggle">
+            <button class="range-btn active" id="rb-week" onclick="setRange('week',this)">Week</button>
+            <button class="range-btn" id="rb-month" onclick="setRange('month',this)">Month</button>
+          </div>
+          <div class="chart-wrap"><canvas id="score-chart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ AI CHAT ═══════════════════ -->
+  <div class="pane" id="pane-chat">
+    <div class="panel" style="max-width:660px;margin:0 auto;padding:0;overflow:hidden;">
+      <div class="chat-shell" style="border:none;border-radius:0;">
+        <div class="chat-hdr" style="padding:16px 20px;">
+          <div class="chat-av" style="width:38px;height:38px;font-size:18px;">🤖</div>
+          <div><div class="chat-name" style="font-size:15px;">Nova — AI Productivity Coach</div>
+            <div class="chat-status" style="font-size:12px;">● Always here for you</div></div>
+        </div>
+        <div class="chips" style="padding:10px 14px 6px;">
+          <div class="chip" onclick="fullChat('Plan my day')">📅 Plan my day</div>
+          <div class="chip" onclick="fullChat('What should I focus on?')">🎯 Focus advice</div>
+          <div class="chip" onclick="fullChat('Give me a productivity tip')">💡 Tip</div>
+          <div class="chip" onclick="fullChat('How productive am I today?')">📊 My progress</div>
+          <div class="chip" onclick="fullChat('Motivate me')">⚡ Motivate me</div>
+          <div class="chip" onclick="fullChat('How many breaks did I take?')">☕ Break count</div>
+        </div>
+        <div class="chat-msgs" id="full-msgs" style="height:420px;padding:14px;"></div>
+        <div class="chat-inp-row" style="padding:12px 14px;">
+          <input class="chat-inp" id="full-inp" placeholder="Ask Nova anything about your productivity…" onkeydown="if(event.key==='Enter')fullSend()">
+          <button class="chat-send" onclick="fullSend()">➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ FOCUS GUARD ═══════════════════ -->
+  <div class="pane" id="pane-guard">
+    <div class="g2">
+      <div>
+        <div class="panel">
+          <div class="p-title">
+            <span>👁️ Focus Guard — Webcam Phone Detector</span>
+            <!-- Live status badge -->
+            <span id="cam-live-badge" style="display:none;font-size:11px;font-weight:700;
+              background:rgba(16,185,129,.15);color:var(--accent3);
+              border:1px solid var(--accent3);border-radius:20px;padding:3px 10px;">
+              ● LIVE
+            </span>
+          </div>
+
+          <!-- ── CONNECT BUTTON (shown when camera is OFF) ── -->
+          <div id="cam-connect-screen" style="text-align:center;padding:24px 16px;">
+            <div style="font-size:48px;margin-bottom:12px;">📷</div>
+            <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;
+              color:var(--text);margin-bottom:6px;">Connect Webcam</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;">
+              Uses TensorFlow COCO-SSD AI to detect a phone in frame.<br>
+              A <strong style="color:#ef4444;">continuous alarm</strong> sounds until the phone is removed.
+            </div>
+            <button id="cam-connect-btn" onclick="toggleCam()"
+              style="background:var(--accent);color:var(--bg);border:none;
+                padding:13px 36px;border-radius:30px;font-size:15px;font-weight:800;
+                font-family:'Syne',sans-serif;cursor:pointer;
+                box-shadow:0 0 24px rgba(0,212,255,.4);transition:all .2s;
+                display:inline-flex;align-items:center;gap:8px;">
+              🔗 Connect Webcam
+            </button>
+            <!-- Error box (shown here when connection fails) -->
+            <div id="cam-error-box" style="display:none;margin-top:16px;padding:14px;
+              background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);
+              border-radius:10px;text-align:left;"></div>
+            <!-- Environment check -->
+            <div id="env-check-box" style="margin-top:12px;padding:9px 12px;
+              background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.15);
+              border-radius:9px;font-size:11px;color:var(--muted);line-height:1.8;text-align:left;"></div>
+          </div>
+
+          <!-- ── LIVE CAMERA VIEW (shown when camera is ON) ── -->
+          <div id="cam-live-screen" style="display:none;">
+            <!-- Video + canvas overlay -->
+            <div style="position:relative;border-radius:12px;overflow:hidden;
+              border:2px solid var(--accent3);box-shadow:0 0 20px rgba(16,185,129,.2);">
+              <video id="cam-video" autoplay muted playsinline
+                style="width:100%;display:block;max-height:240px;object-fit:cover;background:#000;"></video>
+              <canvas id="det-canvas"
+                style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+              <!-- Corner label -->
+              <div style="position:absolute;top:8px;left:8px;
+                background:rgba(16,185,129,.9);color:#fff;
+                font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;
+                font-family:'Syne',sans-serif;letter-spacing:.5px;" id="cam-corner-lbl">
+                ● WEBCAM LIVE
+              </div>
+              <!-- AI status badge -->
+              <div id="ai-badge" style="position:absolute;top:8px;right:8px;
+                background:rgba(8,12,20,.85);color:var(--muted);
+                font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;
+                border:1px solid var(--border);">
+                ⏳ Loading AI…
+              </div>
+            </div>
+
+            <!-- Status bar -->
+            <div id="cam-status-bar" style="display:flex;align-items:center;gap:10px;
+              margin-top:10px;padding:10px 13px;background:var(--surface2);
+              border-radius:10px;border:1px solid var(--border);">
+              <div class="cam-dot on" id="cam-dot" style="flex-shrink:0;"></div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:var(--text);" id="cam-lbl">Camera Active</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:1px;" id="cam-status">Initialising…</div>
+              </div>
+              <button onclick="toggleCam()" id="cam-toggle-btn"
+                style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);
+                  color:#ef4444;padding:5px 13px;border-radius:20px;font-size:12px;
+                  cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;white-space:nowrap;">
+                Disconnect
+              </button>
+            </div>
+
+            <!-- AI model loading bar -->
+            <div id="model-loading-bar" style="display:none;margin-top:8px;
+              padding:8px 12px;background:rgba(245,158,11,.1);
+              border:1px solid rgba(245,158,11,.3);border-radius:8px;
+              font-size:12px;color:var(--warn);">
+              🤖 Loading AI model… (~10s first time)
+            </div>
+
+            <!-- Phone detected card -->
+            <div id="phone-det-card" style="display:none;margin-top:10px;padding:14px;
+              background:rgba(239,68,68,.12);border:2px solid rgba(239,68,68,.5);
+              border-radius:10px;text-align:center;animation:phonePulse .7s ease infinite alternate;">
+              <div style="font-size:28px;">📱</div>
+              <div style="font-size:14px;font-weight:800;color:#ef4444;margin-top:6px;
+                font-family:'Syne',sans-serif;">PHONE DETECTED</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px;">
+                Remove phone to stop alarm
+              </div>
+            </div>
+            @keyframes phonePulse{from{box-shadow:0 0 0 0 rgba(239,68,68,.3);}to{box-shadow:0 0 0 10px rgba(239,68,68,0);}}
+
+            <!-- Sensitivity slider -->
+            <div style="margin-top:10px;padding:10px 12px;background:rgba(0,212,255,.05);
+              border:1px solid rgba(0,212,255,.15);border-radius:9px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="font-size:12px;color:var(--text);font-weight:600;">🎚️ Sensitivity</span>
+                <span id="sens-val" style="font-size:11px;color:var(--accent);font-weight:700;margin-left:auto;">50%</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:10px;color:var(--muted);">Low</span>
+                <input type="range" id="sens-slider" min="20" max="80" value="50" style="flex:1;accent-color:var(--accent);"
+                  oninput="CONFIDENCE=this.value/100;document.getElementById('sens-val').textContent=this.value+'%'">
+                <span style="font-size:10px;color:var(--muted);">High</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Model badge (hidden, kept for JS compat) -->
+          <span id="model-badge" style="display:none;"></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="p-title">Detection Log</div>
+          <div id="guard-log" style="min-height:80px;font-size:13px;color:var(--muted);">
+            No events yet. Connect webcam &amp; start a focus session.
+          </div>
+        </div>
+        <div class="panel">
+          <div class="p-title">Focus Guard Stats</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="stat2"><div class="stat2-val" style="color:var(--danger)" id="alert-ct">0</div><div class="stat2-lbl">Phone Detections</div></div>
+            <div class="stat2"><div class="stat2-val" style="color:var(--warn)" id="guard-breaks">0</div><div class="stat2-lbl">Breaks Taken</div></div>
+            <div class="stat2"><div class="stat2-val" style="color:var(--accent)" id="focus-min">0</div><div class="stat2-lbl">Focus Minutes</div></div>
+            <div class="stat2"><div class="stat2-val" style="color:var(--accent3)" id="self-score">100</div><div class="stat2-lbl">Focus Quality %</div></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:0">
+          <div class="p-title">Phone Alert Status</div>
+          <div id="phone-status-card" style="text-align:center;padding:10px;">
+            <div style="font-size:28px;" id="phone-status-icon">✅</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:6px;" id="phone-status-txt">No phone detected</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+let tasks    = JSON.parse(localStorage.getItem('tnv6_tasks')   || '[]');
+let scores   = JSON.parse(localStorage.getItem('tnv6_scores')  || '[]');
+let schedule = JSON.parse(localStorage.getItem('tnv6_sched')   || 'null') || [
+  {id:1,time:'09:00',title:'Morning Review',tag:'Planning',color:'#00d4ff'},
+  {id:2,time:'10:30',title:'Deep Work Block',tag:'Focus · 2hrs',color:'#7c3aed'},
+  {id:3,time:'13:00',title:'Lunch Break',tag:'Break',color:'#10b981'},
+  {id:4,time:'14:00',title:'Team Standup',tag:'Meeting',color:'#f59e0b'},
+  {id:5,time:'16:00',title:'Project Review',tag:'Review',color:'#ef4444'},
+];
+
+let focusOn      = false;
+let focusSecs    = 3600;
+let focusTimer   = null;
+let breakCt      = 0;
+let wkBreaks     = +localStorage.getItem('tnv6_wkbreaks') || 0;
+let wkSessions   = +localStorage.getItem('tnv6_wksess')   || 0;
+let alertCt      = 0;
+let focusMinutes = 0;
+let shown100     = false;
+let schedIdx     = -1;
+let camStream    = null;
+let camOn        = false;
+let motionTimer  = null;
+let lastPx       = null;
+let whistleBlock = false;
+// phone detection vars initialised in startMotion / loadCocoModel section
+let calDate      = new Date();
+let calSel       = null;
+let chartInst    = null;
+let chartRange   = 'week';
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+(function init(){
+  setDate();
+  document.getElementById('t-date').value = new Date().toISOString().split('T')[0];
+  renderTasks();
+  renderSched();
+  renderCal();
+  renderChart();
+  updateStats();
+  setInterval(checkSchedTransition, 30000);
+  checkSchedTransition();
+  setTimeout(()=>botAppend('mini-msgs','👋 Hi! I\'m Nova. You have '+tasks.length+' task(s) loaded. What do you need?'),600);
+  setTimeout(()=>botAppend('full-msgs','👋 Welcome back! I\'m Nova, your personal productivity coach.\n\nYou have '+tasks.length+' task(s). Your score so far: '+calcScore()+'/100.\n\nTip: Enable Focus Mode for a 1-hour deep work session! ⏱️'),700);
+  updateWeekPanel();
+  // Run environment check for camera
+  (function checkEnv(){
+    const box=document.getElementById('env-check-box');
+    if(!box)return;
+    const isHTTPS = location.protocol==='https:';
+    const isLocalFile = location.protocol==='file:';
+    const isLocalhost = location.hostname==='localhost'||location.hostname==='127.0.0.1';
+    const inFrame = window!==window.top;
+    const hasAPI = !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
+    const allGood = (isHTTPS||isLocalFile||isLocalhost) && !inFrame && hasAPI;
+    if(allGood){
+      box.style.display='none'; // hide when everything is fine
+      return;
+    }
+    const rows=[];
+    if(!(isHTTPS||isLocalFile||isLocalhost))
+      rows.push('⚠️ <strong>HTTP detected</strong> — camera requires HTTPS. Use ngrok link or download HTML → open in Chrome.');
+    if(inFrame)
+      rows.push('⚠️ <strong>Running inside iframe</strong> — camera may be blocked. Open via ngrok link or download the HTML file.');
+    if(!hasAPI)
+      rows.push('❌ <strong>Camera API unavailable</strong> — this browser context does not support camera access.');
+    box.innerHTML='<strong style="color:var(--warn);">⚠️ Camera Setup</strong><br>'+rows.join('<br>');
+  })();
+})();
+
+function setDate(){
+  document.getElementById('date-pill').textContent =
+    new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+}
+
+// ═══════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════
+function gotoTab(name, el){
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('pane-'+name).classList.add('active');
+  const t=document.getElementById('tab-'+name); if(t)t.classList.add('active');
+  if(el)el.classList.add('active');
+  const titles={dashboard:'Dashboard',tasks:'My Tasks',schedule:'Schedule',
+    calendar:'Calendar',analytics:'Analytics',chat:'AI Assistant',guard:'Focus Guard'};
+  document.getElementById('view-title').textContent=titles[name]||name;
+  if(name==='analytics'){renderChart();updateEOD();}
+  if(name==='calendar')renderCal();
+  if(name==='dashboard'){renderDashTasks();renderDashSched();}
+}
+
+// ═══════════════════════════════════════════════
+//  TASKS
+// ═══════════════════════════════════════════════
+function saveTasks(){ localStorage.setItem('tnv6_tasks',JSON.stringify(tasks)); }
+
+function addTask(){
+  const inp=document.getElementById('t-inp');
+  const text=inp.value.trim(); if(!text)return;
+  tasks.unshift({id:Date.now(),text,
+    priority:document.getElementById('t-pri').value,
+    date:document.getElementById('t-date').value,
+    done:false, created:new Date().toISOString()});
+  inp.value='';
+  saveTasks(); renderTasks(); updateStats();
+}
+
+function toggleTask(id){
+  const t=tasks.find(t=>t.id===id);
+  if(t){t.done=!t.done; saveTasks(); renderTasks(); updateStats();}
+}
+function delTask(id){
+  tasks=tasks.filter(t=>t.id!==id);
+  saveTasks(); renderTasks(); updateStats();
+}
+
+function taskHTML(t, mini=false){
+  return `<div class="task-item ${t.done?'done':''} ${focusOn&&!t.done?'hl':''}">
+    <div class="t-chk ${t.done?'on':''}" onclick="toggleTask(${t.id})">${t.done?'✓':''}</div>
+    <div class="t-text">${t.text}${t.date&&!mini?`<div style="font-size:11px;color:var(--muted);margin-top:1px">📅 ${t.date}</div>`:''}
+    </div>
+    <span class="pri-badge pb-${t.priority}">${t.priority}</span>
+    ${!mini?`<button class="t-del" onclick="delTask(${t.id})">✕</button>`:''}
+  </div>`;
+}
+
+function renderTasks(){
+  const el=document.getElementById('task-list'); if(!el)return;
+  document.getElementById('focus-task-badge').style.display=focusOn?'inline':'none';
+  if(!tasks.length){
+    el.innerHTML='<div style="text-align:center;color:var(--muted);padding:28px;font-size:13px;">No tasks yet ✨</div>';
+    return;
+  }
+  el.innerHTML=tasks.map(t=>taskHTML(t)).join('');
+  renderDashTasks();
+}
+
+function renderDashTasks(){
+  const el=document.getElementById('dash-tasks'); if(!el)return;
+  document.getElementById('focus-hl-badge').textContent=focusOn?'⚡ Focus ON':'';
+  const show=tasks.filter(t=>!t.done).slice(0,4);
+  if(!show.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:14px">All tasks done! 🎉</div>';return;}
+  el.innerHTML=show.map(t=>taskHTML(t,true)).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  STATS & SCORE
+// ═══════════════════════════════════════════════
+function calcScore(){
+  const tot=tasks.length, done=tasks.filter(t=>t.done).length;
+  const pct=tot>0?Math.round((done/tot)*100):0;
+  return Math.min(100,Math.round(pct*0.7+(wkSessions*4)+(breakCt>0?-breakCt*2:0)+14));
+}
+
+function updateStats(){
+  const tot=tasks.length, done=tasks.filter(t=>t.done).length, left=tot-done;
+  const today=new Date().toISOString().split('T')[0];
+  const over=tasks.filter(t=>!t.done&&t.date&&t.date<today).length;
+  const pct=tot>0?Math.round((done/tot)*100):0;
+  const score=calcScore();
+
+  document.getElementById('d-total').textContent=tot;
+  document.getElementById('d-done').textContent=done;
+  document.getElementById('d-pending').textContent=left;
+  document.getElementById('d-score').textContent=score;
+  document.getElementById('rs-done').textContent=done;
+  document.getElementById('rs-left').textContent=left;
+  document.getElementById('rs-over').textContent=over;
+  document.getElementById('ring-pct').textContent=pct+'%';
+  document.getElementById('ring-arc').style.strokeDashoffset=289-(289*pct/100);
+  document.getElementById('sb-score').textContent=score;
+  document.getElementById('sb-trend').textContent=`Score today`;
+  updateEOD(score);
+  updateWeekPanel();
+
+  // 100% overlay
+  if(pct===100&&tot>0&&!shown100){
+    shown100=true;
+    showOverlay('🎉','GOOD — YOU CAN DO IT!',
+      'All '+tot+' tasks completed! Your score: '+score+'/100. Outstanding! 🏆','var(--accent3)');
+    beep('fanfare');
+  }
+  if(pct<100) shown100=false;
+}
+
+function updateEOD(s){
+  const score = s||calcScore();
+  const el=document.getElementById('eod-num'); if(el)el.textContent=score;
+  let msg='';
+  if(score>=90)msg='🏆 Outstanding day! You crushed it!';
+  else if(score>=75)msg='🎯 Great work! Keep the momentum!';
+  else if(score>=50)msg='💪 Solid progress — push a bit more!';
+  else msg='⚡ Keep going — every task counts!';
+  const me=document.getElementById('eod-msg'); if(me)me.textContent=msg;
+}
+
+function saveScore(){
+  const sc=calcScore();
+  const today=new Date().toISOString().split('T')[0];
+  const idx=scores.findIndex(s=>s.date===today);
+  if(idx>=0)scores[idx].score=sc; else scores.push({date:today,score:sc});
+  localStorage.setItem('tnv6_scores',JSON.stringify(scores));
+  renderChart();
+  showOverlay('💾','Score Saved!','Today\'s score of '+sc+'/100 added to your history chart!','var(--accent)');
+}
+
+function clearDay(){
+  shown100=false; wkBreaks=0; wkSessions=0; breakCt=0; focusMinutes=0;
+  localStorage.setItem('tnv6_wkbreaks','0'); localStorage.setItem('tnv6_wksess','0');
+  document.getElementById('break-count').textContent='0';
+  document.getElementById('guard-breaks').textContent='0';
+  document.getElementById('wk-breaks').textContent='0';
+  document.getElementById('wk-sessions').textContent='0';
+  document.getElementById('focus-min').textContent='0';
+  updateStats();
+}
+
+function updateWeekPanel(){
+  const best=scores.length?Math.max(...scores.map(s=>s.score)):0;
+  document.getElementById('wk-sessions').textContent=wkSessions;
+  document.getElementById('wk-breaks').textContent=wkBreaks;
+  document.getElementById('wk-tasks').textContent=tasks.filter(t=>t.done).length;
+  document.getElementById('wk-best').textContent=best;
+  const qa=alertCt>0?Math.max(0,100-alertCt*10):100;
+  document.getElementById('self-score').textContent=qa;
+}
+
+// ═══════════════════════════════════════════════
+//  FOCUS MODE — 1 HOUR
+// ═══════════════════════════════════════════════
+function toggleFocus(){
+  if(focusOn){
+    // PAUSE → break
+    clearInterval(focusTimer); focusOn=false;
+    breakCt++; wkBreaks++;
+    localStorage.setItem('tnv6_wkbreaks',wkBreaks);
+    document.getElementById('break-count').textContent=breakCt;
+    document.getElementById('guard-breaks').textContent=breakCt;
+    document.getElementById('wk-breaks').textContent=wkBreaks;
+    document.getElementById('focus-btn').classList.remove('active');
+    document.getElementById('focus-icon').textContent='▶';
+    document.getElementById('focus-task-badge').style.display='none';
+    renderTasks();
+    if(motionTimer){clearInterval(motionTimer);motionTimer=null;}
+    // Guaranteed stop: kill beep, hide all phone UI
+    stopPhoneBeep();
+    phonePresent = false;
+    const _ab=document.getElementById('phone-alert-bar');if(_ab)_ab.classList.remove('show');
+    const _pd=document.getElementById('phone-det-card');if(_pd)_pd.style.display='none';
+    if(window._beepReschedTimer){clearInterval(window._beepReschedTimer);window._beepReschedTimer=null;}
+    guardLog('☕ Break #'+breakCt+' started — focus paused.');
+  } else {
+    // START focus
+    focusOn=true; focusSecs=3600;
+    document.getElementById('focus-btn').classList.add('active');
+    document.getElementById('focus-icon').textContent='⏸';
+    document.getElementById('focus-task-badge').style.display='inline';
+    renderTasks();
+
+    // Good Job banner
+    const b=document.getElementById('gj-banner');
+    b.classList.add('show');
+    setTimeout(()=>b.classList.remove('show'),5000);
+
+    beep('start');
+    wkSessions++;
+    localStorage.setItem('tnv6_wksess',wkSessions);
+    document.getElementById('wk-sessions').textContent=wkSessions;
+    if(camOn)startMotion();
+    guardLog('⚡ Focus session started — 60 minutes.');
+    botAppend('mini-msgs','⏱️ 1-hour focus session started! I\'ll cheer you on. You\'ve got this! 💪');
+
+    focusTimer=setInterval(()=>{
+      if(focusSecs<=0){
+        clearInterval(focusTimer);
+        focusOn=false;
+        document.getElementById('focus-time-display').textContent='60:00';
+        document.getElementById('focus-btn').classList.remove('active');
+        document.getElementById('focus-icon').textContent='▶';
+        document.getElementById('focus-task-badge').style.display='none';
+        renderTasks();
+        if(motionTimer){clearInterval(motionTimer);motionTimer=null;}
+        stopPhoneBeep();
+        phonePresent=false;
+        if(window._beepReschedTimer){clearInterval(window._beepReschedTimer);window._beepReschedTimer=null;}
+        const _ab2=document.getElementById('phone-alert-bar');if(_ab2)_ab2.classList.remove('show');
+        const _pd2=document.getElementById('phone-det-card');if(_pd2)_pd2.style.display='none';
+        beep('fanfare');
+        showOverlay('🏆','Focus Complete!','You completed a full 1-hour deep work session! Amazing focus! 🔥','var(--accent)');
+        botAppend('mini-msgs','🏆 Focus session complete! Great concentration. Now take a well-earned break!');
+        return;
+      }
+      focusSecs--;
+      focusMinutes=Math.floor((3600-focusSecs)/60);
+      document.getElementById('focus-min').textContent=focusMinutes;
+      const m=String(Math.floor(focusSecs/60)).padStart(2,'0');
+      const s=String(focusSecs%60).padStart(2,'0');
+      document.getElementById('focus-time-display').textContent=`${m}:${s}`;
+    },1000);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  SCHEDULE
+// ═══════════════════════════════════════════════
+function saveSched(){ localStorage.setItem('tnv6_sched',JSON.stringify(schedule)); }
+
+function renderSched(){
+  const sorted=[...schedule].sort((a,b)=>a.time.localeCompare(b.time));
+  const html=sorted.map((s,i)=>`
+    <div class="sched-item ${i===schedIdx?'now':''}">
+      <div class="s-time">${s.time}</div>
+      <div class="s-dot" style="background:${s.color}"></div>
+      <div class="s-info"><div class="s-name">${s.title}</div><div class="s-tag">${s.tag}</div></div>
+      <button class="s-del" onclick="delSched(${s.id})">✕</button>
+    </div>`).join('');
+  const sl=document.getElementById('sched-list'); if(sl)sl.innerHTML=html;
+  renderDashSched(sorted);
+}
+
+function renderDashSched(sorted){
+  const el=document.getElementById('dash-sched'); if(!el)return;
+  const s=sorted||[...schedule].sort((a,b)=>a.time.localeCompare(b.time));
+  el.innerHTML=s.map((sc,i)=>`
+    <div class="sched-item ${i===schedIdx?'now':''}">
+      <div class="s-time">${sc.time}</div>
+      <div class="s-dot" style="background:${sc.color}"></div>
+      <div class="s-info"><div class="s-name">${sc.title}</div><div class="s-tag">${sc.tag}</div></div>
+    </div>`).join('');
+}
+
+function addSchedItem(){
+  const time=document.getElementById('si-time').value;
+  const title=document.getElementById('si-title').value.trim();
+  if(!time||!title)return;
+  schedule.push({id:Date.now(),time,title,
+    tag:document.getElementById('si-tag').value.trim()||'Event',
+    color:document.getElementById('si-color').value});
+  saveSched(); renderSched();
+  document.getElementById('si-time').value='';
+  document.getElementById('si-title').value='';
+  document.getElementById('si-tag').value='';
+}
+
+function delSched(id){
+  schedule=schedule.filter(s=>s.id!==id); saveSched(); renderSched();
+}
+
+function checkSchedTransition(){
+  const now=new Date();
+  const ns=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const sorted=[...schedule].sort((a,b)=>a.time.localeCompare(b.time));
+  let ni=-1;
+  sorted.forEach((s,i)=>{ if(s.time<=ns)ni=i; });
+  if(ni!==schedIdx&&ni>=0){
+    const prev=schedIdx; schedIdx=ni; renderSched();
+    if(prev>=0){
+      beep('alarm');
+      const cur=sorted[ni];
+      document.getElementById('now-sched').textContent='▶ '+cur.title;
+      showOverlay('📅','Schedule Change',`It's ${cur.time} — Time for: ${cur.title} (${cur.tag})`,'var(--warn)');
+      botAppend('mini-msgs',`📅 Schedule: "${cur.title}" starts now at ${cur.time}. Stay on track!`);
+    } else {
+      document.getElementById('now-sched').textContent='▶ '+sorted[ni].title;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  CALENDAR
+// ═══════════════════════════════════════════════
+function renderCal(){
+  const y=calDate.getFullYear(), m=calDate.getMonth();
+  document.getElementById('cal-month').textContent=
+    new Date(y,m,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const first=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate();
+  const td=new Date();
+  let h='';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>h+=`<div class="cal-hdr">${d}</div>`);
+  for(let i=0;i<first;i++)h+=`<div class="cal-day empty"></div>`;
+  for(let d=1;d<=days;d++){
+    const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isT=d===td.getDate()&&m===td.getMonth()&&y===td.getFullYear();
+    const isS=calSel===ds;
+    const hasT=tasks.some(t=>t.date===ds);
+    h+=`<div class="cal-day ${isT?'today':''} ${isS?'sel':''} ${hasT?'has-t':''}" onclick="calDay('${ds}')">${d}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML=h;
+}
+
+function calDay(ds){
+  calSel=ds; renderCal();
+  const panel=document.getElementById('cal-day-panel');
+  panel.style.display='block';
+  document.getElementById('cal-day-title').textContent='Tasks — '+ds;
+  const dt=tasks.filter(t=>t.date===ds);
+  const el=document.getElementById('cal-day-tasks');
+  if(!dt.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;">No tasks this day.</div>';return;}
+  el.innerHTML=dt.map(t=>`<div class="task-item ${t.done?'done':''}">
+    <div class="t-chk ${t.done?'on':''}">${t.done?'✓':''}</div>
+    <div class="t-text">${t.text}</div>
+    <span class="pri-badge pb-${t.priority}">${t.priority}</span>
+  </div>`).join('');
+}
+
+function calMonth(d){
+  calDate=new Date(calDate.getFullYear(),calDate.getMonth()+d,1); renderCal();
+}
+
+// ═══════════════════════════════════════════════
+//  ANALYTICS — BAR CHART
+// ═══════════════════════════════════════════════
+function setRange(r,el){
+  chartRange=r;
+  document.querySelectorAll('.range-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderChart();
+}
+
+function renderChart(){
+  const canvas=document.getElementById('score-chart'); if(!canvas)return;
+  const today=new Date();
+  let labels=[], data=[];
+  const days=chartRange==='week'?7:30;
+
+  for(let i=days-1;i>=0;i--){
+    const d=new Date(today); d.setDate(d.getDate()-i);
+    const ds=d.toISOString().split('T')[0];
+    if(chartRange==='week')
+      labels.push(d.toLocaleDateString('en-US',{weekday:'short'}));
+    else
+      labels.push(i%5===0?d.getDate()+'':'');
+    const found=scores.find(s=>s.date===ds);
+    // today's live score, past days from history or simulated
+    if(i===0) data.push(calcScore());
+    else data.push(found?found.score:Math.floor(45+Math.random()*40));
+  }
+
+  if(chartInst)chartInst.destroy();
+  chartInst=new Chart(canvas.getContext('2d'),{
+    type:'bar',
+    data:{labels,datasets:[{
+      label:'Productivity Score',data,
+      backgroundColor:'rgba(0,212,255,0.22)',
+      borderColor:'rgba(0,212,255,0.9)',
+      borderWidth:2,borderRadius:7,
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#0e1520',borderColor:'#1e2d42',borderWidth:1,
+          titleColor:'#e2eaf5',bodyColor:'#617a96'}
+      },
+      scales:{
+        y:{min:0,max:100,grid:{color:'rgba(255,255,255,0.04)'},
+          ticks:{color:'#617a96',font:{size:11}}},
+        x:{grid:{display:false},ticks:{color:'#617a96',font:{size:10}}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  OVERLAY
+// ═══════════════════════════════════════════════
+function showOverlay(emoji,title,sub,color){
+  document.getElementById('ov-emoji').textContent=emoji;
+  document.getElementById('ov-title').textContent=title;
+  document.getElementById('ov-title').style.color=color||'var(--accent)';
+  document.getElementById('ov-sub').textContent=sub;
+  document.getElementById('overlay').classList.add('show');
+}
+function closeOverlay(){ document.getElementById('overlay').classList.remove('show'); }
+
+// ═══════════════════════════════════════════════
+//  SOUND
+// ═══════════════════════════════════════════════
+function beep(type){
+  try{
+    const ac=new(window.AudioContext||window.webkitAudioContext)();
+    if(type==='alarm'){
+      [0,.28,.56].forEach(t=>{
+        const o=ac.createOscillator(),g=ac.createGain();
+        o.connect(g);g.connect(ac.destination);
+        o.frequency.value=880;o.type='sine';
+        g.gain.setValueAtTime(.5,ac.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+t+.22);
+        o.start(ac.currentTime+t);o.stop(ac.currentTime+t+.25);
+      });
+    } else if(type==='whistle'){
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.connect(g);g.connect(ac.destination);
+      o.frequency.setValueAtTime(1200,ac.currentTime);
+      o.frequency.linearRampToValueAtTime(1900,ac.currentTime+.15);
+      o.frequency.linearRampToValueAtTime(1200,ac.currentTime+.32);
+      g.gain.setValueAtTime(.55,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.38);
+      o.type='sine';o.start();o.stop(ac.currentTime+.42);
+    } else if(type==='fanfare'){
+      [[523,0],[659,.15],[784,.3],[1047,.48]].forEach(([f,t])=>{
+        const o=ac.createOscillator(),g=ac.createGain();
+        o.connect(g);g.connect(ac.destination);
+        o.frequency.value=f;o.type='sine';
+        g.gain.setValueAtTime(.35,ac.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+t+.32);
+        o.start(ac.currentTime+t);o.stop(ac.currentTime+t+.36);
+      });
+    } else if(type==='start'){
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.connect(g);g.connect(ac.destination);
+      o.frequency.value=523;o.type='sine';
+      g.gain.setValueAtTime(.3,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.45);
+      o.start();o.stop(ac.currentTime+.5);
+    }
+  } catch(e){}
+}
+
+// ═══════════════════════════════════════════════
+//  AI PHONE DETECTION — TensorFlow COCO-SSD
+//  Persistent AudioContext beep that CANNOT be
+//  silenced by the browser until explicitly stopped
+// ═══════════════════════════════════════════════
+let cocoModel    = null;
+let phonePresent = false;
+let detCanvas    = null;
+let detCtx       = null;
+let CONFIDENCE   = 0.50;
+
+// ── Persistent single AudioContext + GainNode for beeping ──
+// We keep ONE AudioContext alive for the whole session.
+// When phone detected: ramp gain UP  → continuous tone
+// When phone removed:  ramp gain DOWN → silence
+// This avoids the "new AudioContext per beep" throttle browsers impose.
+let _beepAC   = null;   // single AudioContext
+let _beepOsc  = null;   // single running oscillator
+let _beepGain = null;   // single gain node
+
+function _ensureBeepAC(){
+  if(_beepAC && _beepAC.state !== 'closed') return;
+  _beepAC   = new (window.AudioContext || window.webkitAudioContext)();
+  _beepGain = _beepAC.createGain();
+  _beepGain.gain.setValueAtTime(0, _beepAC.currentTime);   // start silent
+  _beepGain.connect(_beepAC.destination);
+  _beepOsc  = _beepAC.createOscillator();
+  _beepOsc.type      = 'square';
+  _beepOsc.frequency.value = 1400;
+  _beepOsc.connect(_beepGain);
+  _beepOsc.start();   // runs forever until context closed
+}
+
+function startPhoneBeep(){
+  try{
+    _ensureBeepAC();
+    if(_beepAC.state === 'suspended') _beepAC.resume();
+    // Pulse pattern: 0.3s on / 0.2s off, loops every 0.5s
+    // We achieve this by scheduling gain changes into the future
+    const ac = _beepAC;
+    const g  = _beepGain.gain;
+    g.cancelScheduledValues(ac.currentTime);
+    // Schedule 20 pulses (10 seconds worth) — restartPhoneBeep will keep extending
+    for(let i = 0; i < 20; i++){
+      const t = ac.currentTime + i * 0.55;
+      g.setValueAtTime(0.55, t);
+      g.setValueAtTime(0,    t + 0.30);
+    }
+    // Restart scheduling before it runs out
+    if(window._beepReschedTimer) clearInterval(window._beepReschedTimer);
+    window._beepReschedTimer = setInterval(()=>{
+      if(!phonePresent){ clearInterval(window._beepReschedTimer); return; }
+      try{
+        const g2 = _beepGain.gain, ac2 = _beepAC;
+        g2.cancelScheduledValues(ac2.currentTime);
+        for(let i = 0; i < 20; i++){
+          const t = ac2.currentTime + i * 0.55;
+          g2.setValueAtTime(0.55, t);
+          g2.setValueAtTime(0,    t + 0.30);
+        }
+      }catch(e){}
+    }, 8000);   // reschedule every 8s well before the 10s run out
+  }catch(err){ console.warn('Beep start error:', err); }
+}
+
+function stopPhoneBeep(){
+  try{
+    if(window._beepReschedTimer){ clearInterval(window._beepReschedTimer); window._beepReschedTimer=null; }
+    if(_beepGain){
+      _beepGain.gain.cancelScheduledValues(_beepAC.currentTime);
+      _beepGain.gain.setTargetAtTime(0, _beepAC.currentTime, 0.05); // fast fade to silence
+    }
+  }catch(e){}
+}
+
+// ── Draw red bounding boxes on the overlay canvas ──
+function drawBoxes(preds, vw, vh){
+  if(!detCanvas) return;
+  // Match canvas pixel size to video logical size
+  if(detCanvas.width !== vw)  detCanvas.width  = vw;
+  if(detCanvas.height !== vh) detCanvas.height = vh;
+  if(!detCtx) detCtx = detCanvas.getContext('2d');
+  detCtx.clearRect(0, 0, vw, vh);
+  preds.forEach(p => {
+    if(p.class === 'cell phone' && p.score >= CONFIDENCE){
+      const [x, y, w, h] = p.bbox;
+      // Red box
+      detCtx.strokeStyle = '#ef4444';
+      detCtx.lineWidth   = 3;
+      detCtx.strokeRect(x, y, w, h);
+      // Label bar
+      const lblW = Math.max(w, 130);
+      detCtx.fillStyle = 'rgba(239,68,68,0.82)';
+      detCtx.fillRect(x, y - 26, lblW, 26);
+      // Label text
+      detCtx.fillStyle = '#ffffff';
+      detCtx.font      = 'bold 14px sans-serif';
+      detCtx.fillText(`📱 PHONE  ${(p.score * 100)|0}%`, x + 5, y - 7);
+    }
+  });
+}
+
+// ── COCO-SSD detection loop (runs every 900ms) ──
+function startMotion(){
+  const video     = document.getElementById('cam-video');
+  detCanvas       = document.getElementById('det-canvas');
+  detCtx          = detCanvas ? detCanvas.getContext('2d') : null;
+  const alertBar  = document.getElementById('phone-alert-bar');
+  const detCard   = document.getElementById('phone-det-card');
+  const statusIco = document.getElementById('phone-status-icon');
+  const statusTxt = document.getElementById('phone-status-txt');
+  const statusEl  = document.getElementById('cam-status');
+
+  // Warm up AudioContext on first startMotion (needs user gesture already happened via button click)
+  _ensureBeepAC();
+
+  let missCount = 0;   // consecutive frames with no phone — avoids false "removed" on single miss
+
+  motionTimer = setInterval(async () => {
+    if(!focusOn || !camOn || !cocoModel) return;
+    try{
+      const preds = await cocoModel.detect(video);
+      const vw    = video.videoWidth  || 320;
+      const vh    = video.videoHeight || 240;
+      drawBoxes(preds, vw, vh);
+
+      const hasPhone = preds.some(p => p.class === 'cell phone' && p.score >= CONFIDENCE);
+
+      if(hasPhone){
+        missCount = 0;
+        if(!phonePresent){
+          // ── Phone just appeared ──────────────────────────────────
+          phonePresent = true;
+          alertCt++;
+          startPhoneBeep();
+          if(alertBar)  alertBar.classList.add('show');
+          if(detCard)   detCard.style.display = 'block';
+          if(statusIco) statusIco.textContent = '📱';
+          if(statusTxt) statusTxt.textContent = `Phone detected! Alert #${alertCt}`;
+          if(statusEl)  statusEl.textContent  = '🚨 PHONE IN FRAME — Alarm active!';
+          document.getElementById('alert-ct').textContent  = alertCt;
+          document.getElementById('self-score').textContent = Math.max(0, 100 - alertCt * 10);
+          guardLog(`📱 Phone detected! Alert #${alertCt} — ${new Date().toLocaleTimeString()}`);
+          botAppend('mini-msgs', '📱 Phone detected! Put it down and stay focused! 🎯');
+          updateWeekPanel();
+        }
+      } else {
+        missCount++;
+        // Require 3 consecutive miss frames (~2.7s) before declaring phone removed
+        // This prevents flickering alarms from single-frame detection glitches
+        if(missCount >= 3 && phonePresent){
+          // ── Phone removed ────────────────────────────────────────
+          phonePresent = false;
+          missCount    = 0;
+          stopPhoneBeep();
+          if(alertBar)  alertBar.classList.remove('show');
+          if(detCard)   detCard.style.display = 'none';
+          if(statusIco) statusIco.textContent = '✅';
+          if(statusTxt) statusTxt.textContent = 'Phone removed — great refocus!';
+          if(statusEl)  statusEl.textContent  = '📸 Camera active — scanning for phone…';
+          if(detCtx && detCanvas) detCtx.clearRect(0, 0, detCanvas.width, detCanvas.height);
+          guardLog(`✅ Phone removed — refocused. ${new Date().toLocaleTimeString()}`);
+        }
+      }
+    } catch(e){ console.warn('Detection error:', e); }
+  }, 900);   // scan every 900ms for faster response
+}
+
+// ── Load COCO-SSD model ──────────────────────────────────────────────────────
+async function loadCocoModel(){
+  const lb = document.getElementById('model-loading-bar');
+  const mb = document.getElementById('model-badge');
+  if(lb) lb.style.display = 'block';
+  if(mb) mb.textContent   = '⏳ Loading AI model…';
+  try{
+    cocoModel = await cocoSsd.load();
+    if(lb) lb.style.display = 'none';
+    if(mb) mb.textContent   = '✅ AI Ready';
+    guardLog('🤖 COCO-SSD model loaded — phone detection active.');
+    document.getElementById('cam-status').textContent = '📸 Camera + AI active — scanning every 0.9s.';
+  } catch(err){
+    if(lb){ lb.textContent = '⚠️ Model load failed — check internet connection.'; lb.style.display='block'; }
+    if(mb) mb.textContent = '❌ Model error';
+    console.error('COCO-SSD load error:', err);
+  }
+}
+
+// ── CAMERA ERROR DIAGNOSIS ─────────────────────────────────────────────────
+function diagnoseCamError(e){
+  const isHTTP  = location.protocol==='http:' && location.hostname!=='localhost';
+  const inFrame = window!==window.top;
+  const name    = e.name||'';
+  const msg     = (e.message||'').toLowerCase();
+
+  if(isHTTP){
+    return {
+      icon:'🔒',
+      title:'HTTPS Required',
+      detail:'Camera access is blocked on plain HTTP pages.',
+      steps:[
+        '1️⃣ Open the downloaded HTML file directly in Chrome (double-click)',
+        '2️⃣ OR use the ngrok HTTPS link from the Colab Cell 3',
+        '3️⃣ Do NOT open via http:// — always use https:// or a local file'
+      ]
+    };
+  }
+  if(inFrame && (name==='NotAllowedError'||name==='SecurityError')){
+    return {
+      icon:'🖼️',
+      title:'Blocked Inside iframe',
+      detail:'This page is embedded inside Colab — iframes block camera by default.',
+      steps:[
+        '1️⃣ Click ⤢ (expand) icon on the Colab output cell to open full-screen',
+        '2️⃣ OR run Cell 3 in the Colab notebook to get a public HTTPS link',
+        '3️⃣ OR download the HTML (Cell 4) and open it directly in Chrome'
+      ]
+    };
+  }
+  if(name==='NotAllowedError'||name==='PermissionDeniedError'){
+    return {
+      icon:'🚫',
+      title:'Camera Permission Denied',
+      detail:'You previously blocked camera access for this page.',
+      steps:[
+        '1️⃣ Click the 🔒 or 📷 icon in the browser address bar',
+        '2️⃣ Set Camera → Allow',
+        '3️⃣ Refresh the page and try again',
+        '— Chrome: Settings → Privacy → Camera → remove this site from blocked list',
+        '— Firefox: about:preferences → Privacy → Permissions → Camera'
+      ]
+    };
+  }
+  if(name==='NotFoundError'||name==='DevicesNotFoundError'){
+    return {
+      icon:'📷',
+      title:'No Camera Found',
+      detail:'Your device has no accessible camera.',
+      steps:[
+        '1️⃣ Check Device Manager (Windows) or System Preferences (Mac) for camera',
+        '2️⃣ Make sure no other app is using the camera (Zoom, Teams, etc.)',
+        '3️⃣ Try plugging in an external webcam',
+        '4️⃣ Use Demo Mode below to test phone detection without a camera'
+      ]
+    };
+  }
+  if(name==='NotReadableError'||name==='TrackStartError'){
+    return {
+      icon:'🔁',
+      title:'Camera In Use by Another App',
+      detail:'Another application is currently using the camera.',
+      steps:[
+        '1️⃣ Close Zoom, Teams, Skype, Meet, or any video app',
+        '2️⃣ Close other browser tabs that may be using the camera',
+        '3️⃣ Restart your browser and try again'
+      ]
+    };
+  }
+  if(name==='OverconstrainedError'){
+    return {
+      icon:'⚙️',
+      title:'Camera Settings Not Supported',
+      detail:'The requested resolution is not supported by your camera.',
+      steps:[
+        '1️⃣ Click Retry — the app will now try with lower constraints',
+        '2️⃣ If it still fails, your camera driver may need updating'
+      ]
+    };
+  }
+  return {
+    icon:'⚠️',
+    title:'Camera Error: '+name,
+    detail:e.message||'Unknown error',
+    steps:[
+      '1️⃣ Make sure you are on HTTPS (not HTTP)',
+      '2️⃣ Allow camera in browser address bar',
+      '3️⃣ Close other apps using the camera',
+      '4️⃣ Try a different browser (Chrome recommended)'
+    ]
+  };
+}
+
+function showCamError(diag){
+  const box = document.getElementById('cam-error-box');
+  if(!box) return;
+  box.style.display='block';
+  box.innerHTML = `
+    <div style="font-size:32px;margin-bottom:8px;">${diag.icon}</div>
+    <div style="font-size:15px;font-weight:700;color:var(--danger);margin-bottom:6px;">${diag.title}</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${diag.detail}</div>
+    <div style="text-align:left;margin-bottom:14px;">
+      ${diag.steps.map(s=>`<div style="font-size:12px;color:var(--text);padding:3px 0;line-height:1.5;">${s}</div>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
+      <button class="btn-sm" onclick="retryCam()" style="border-color:var(--accent);color:var(--accent);">
+        🔄 Retry
+      </button>
+      <button class="btn-sm" onclick="startDemoMode()" style="border-color:var(--accent3);color:var(--accent3);">
+        🎮 Demo Mode
+      </button>
+    </div>`;
+  // Make sure we're on the connect screen
+  document.getElementById('cam-connect-screen').style.display='block';
+  document.getElementById('cam-live-screen').style.display='none';
+}
+
+// Retry with relaxed constraints
+async function retryCam(){
+  const box=document.getElementById('cam-error-box');
+  if(box){ box.style.display='none'; box.innerHTML=''; }
+  const statusEl=document.getElementById('cam-status');
+  if(statusEl) statusEl.textContent='🔄 Retrying with minimal constraints…';
+  try{
+    // Try bare minimum — no constraints at all
+    camStream = await navigator.mediaDevices.getUserMedia({video:true, audio:false});
+    onCamSuccess();
+  }catch(e2){
+    try{
+      // Try environment-facing (back camera on phones)
+      camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+      onCamSuccess();
+    }catch(e3){
+      const diag = diagnoseCamError(e3);
+      showCamError(diag);
+      if(statusEl) statusEl.textContent='❌ All retry attempts failed — see fix steps above.';
+    }
+  }
+}
+
+function onCamSuccess(){
+  document.getElementById('cam-video').srcObject=camStream;
+  camOn=true;
+  // Switch screens
+  document.getElementById('cam-connect-screen').style.display='none';
+  document.getElementById('cam-live-screen').style.display='block';
+  document.getElementById('cam-live-badge').style.display='inline';
+  // Update status bar
+  document.getElementById('cam-dot').className='cam-dot on';
+  document.getElementById('cam-lbl').textContent='Webcam Connected ✅';
+  document.getElementById('cam-status').textContent='Waiting for AI model…';
+  const box=document.getElementById('cam-error-box');if(box){box.style.display='none';box.innerHTML='';}
+  guardLog('📸 Webcam connected successfully.');
+  if(!cocoModel) loadCocoModel();
+  if(focusOn) startMotion();
+}
+
+// Demo mode — simulates phone detection without a real camera
+let demoActive=false, demoTimer=null, demoPhoneIn=false;
+function startDemoMode(){
+  demoActive=true;
+  const box=document.getElementById('cam-error-box');
+  if(box) box.style.display='none';
+  document.getElementById('cam-lbl').textContent='🎮 DEMO MODE';
+  document.getElementById('cam-dot').className='cam-dot on';
+  document.getElementById('cam-status').textContent='🎮 Demo mode active — simulating phone detection every 8s.';
+  const video=document.getElementById('cam-video');
+  video.style.background='linear-gradient(135deg,#0e1520,#1e2d42)';
+
+  // Draw demo canvas
+  detCanvas=document.getElementById('det-canvas');
+  detCtx=detCanvas?detCanvas.getContext('2d'):null;
+  guardLog('🎮 Demo mode started — phone will be simulated every 8s.');
+
+  demoTimer=setInterval(()=>{
+    if(!focusOn){ return; }
+    if(!demoPhoneIn){
+      // Simulate phone appearing
+      demoPhoneIn=true;
+      if(detCanvas&&detCtx){
+        detCanvas.width=320;detCanvas.height=180;
+        detCtx.strokeStyle='#ef4444';detCtx.lineWidth=3;
+        detCtx.strokeRect(80,40,80,120);
+        detCtx.fillStyle='rgba(239,68,68,0.72)';
+        detCtx.fillRect(80,18,120,22);
+        detCtx.fillStyle='#fff';detCtx.font='bold 12px sans-serif';
+        detCtx.fillText('📱 PHONE 91%',84,33);
+      }
+      phonePresent=true;alertCt++;
+      startPhoneBeep();
+      document.getElementById('phone-alert-bar').classList.add('show');
+      const pdc=document.getElementById('phone-det-card');if(pdc)pdc.style.display='block';
+      document.getElementById('alert-ct').textContent=alertCt;
+      document.getElementById('self-score').textContent=Math.max(0,100-alertCt*10);
+      guardLog(`🎮 [DEMO] Phone detected! Alert #${alertCt}`);
+    } else {
+      // Simulate phone removed after 4s
+      setTimeout(()=>{
+        demoPhoneIn=false;phonePresent=false;stopPhoneBeep();
+        document.getElementById('phone-alert-bar').classList.remove('show');
+        const pdc=document.getElementById('phone-det-card');if(pdc)pdc.style.display='none';
+        if(detCtx&&detCanvas)detCtx.clearRect(0,0,detCanvas.width,detCanvas.height);
+        guardLog('🎮 [DEMO] Phone removed.');
+      },4000);
+    }
+  },8000);
+  camOn=true;
+  document.getElementById('cam-toggle-btn').textContent='Stop Demo';
+}
+
+function stopDemoMode(){
+  demoActive=false;
+  if(demoTimer){clearInterval(demoTimer);demoTimer=null;}
+  demoPhoneIn=false;
+}
+
+async function toggleCam(){
+  const btn=document.getElementById('cam-toggle-btn');
+  if(camOn){
+    if(demoActive) stopDemoMode();
+    if(camStream) camStream.getTracks().forEach(t=>t.stop());
+    camStream=null; camOn=false; phonePresent=false;
+    stopPhoneBeep();
+    if(window._beepReschedTimer){clearInterval(window._beepReschedTimer);window._beepReschedTimer=null;}
+    // Flip back to connect screen
+    document.getElementById('cam-connect-screen').style.display='block';
+    document.getElementById('cam-live-screen').style.display='none';
+    document.getElementById('cam-live-badge').style.display='none';
+    const ab=document.getElementById('phone-alert-bar');if(ab)ab.classList.remove('show');
+    const dc=document.getElementById('phone-det-card');if(dc)dc.style.display='none';
+    if(detCtx&&detCanvas)detCtx.clearRect(0,0,detCanvas.width,detCanvas.height);
+    if(motionTimer){clearInterval(motionTimer);motionTimer=null;}
+    guardLog('📷 Webcam disconnected.');
+  } else {
+    const box=document.getElementById('cam-error-box');
+    if(box)box.style.display='none';
+    const statusEl=document.getElementById('cam-status');
+    if(statusEl)statusEl.textContent='⏳ Requesting camera access…';
+
+    // Pre-check: is getUserMedia even available?
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+      showCamError({
+        icon:'🔒',
+        title:'Camera API Not Available',
+        detail:'This browser or context does not support camera access.',
+        steps:[
+          '1️⃣ You must be on HTTPS (not HTTP) — check the address bar',
+          '2️⃣ Open the HTML file directly in Chrome (not via Colab iframe)',
+          '3️⃣ Use the ngrok link from Colab Cell 3',
+          '4️⃣ Try Demo Mode to test without a camera'
+        ]
+      });
+      if(statusEl)statusEl.textContent='❌ Camera API not available in this environment.';
+      return;
+    }
+
+    try{
+      // First attempt: full constraints
+      camStream=await navigator.mediaDevices.getUserMedia(
+        {video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+      onCamSuccess();
+    }catch(e){
+      console.error('Camera error:',e.name,e.message);
+      const diag=diagnoseCamError(e);
+      showCamError(diag);
+      if(statusEl)statusEl.textContent=`❌ ${diag.title} — see fix guide above.`;
+      guardLog(`❌ Camera error: ${e.name} — ${e.message}`);
+    }
+  }
+}
+
+function guardLog(msg){
+  const el=document.getElementById('guard-log');
+  if(!el)return;
+  if(el.textContent.includes('No events'))el.innerHTML='';
+  el.innerHTML=`<div class="guard-log-item">${msg}</div>`+el.innerHTML;
+}
+
+// ═══════════════════════════════════════════════
+//  CHATBOT
+// ═══════════════════════════════════════════════
+const tips=[
+  '💡 Try the 2-minute rule: if it takes under 2 min, do it right now!',
+  '💡 Time-block your calendar — protect your deep work hours fiercely.',
+  '💡 Eat the frog! Tackle your hardest task first thing in the morning. 🐸',
+  '💡 Take a 5-min break every 50 minutes to sustain peak performance.',
+  '💡 Single-task, don\'t multitask — focus on one thing at a time.',
+  '💡 Review your tomorrow the night before — save morning decision energy.',
+];
+const motivations=[
+  '🔥 "The secret of getting ahead is getting started." — Mark Twain\n\nOne small step now builds the momentum of tomorrow! 💪',
+  '⚡ You\'re doing better than you think. Progress > Perfection. Keep going! 🚀',
+  '🌟 Every completed task is a vote for the person you\'re becoming. Cast those votes!',
+  '🏆 Champions aren\'t made in moments of comfort. Push through — you\'ve got this! 💪',
+];
+
+function getBotReply(msg){
+  const m=msg.toLowerCase();
+  if(m.includes('plan')||m.includes('day')){
+    return `Here's your optimized plan:\n\n🌅 9–10 AM: Review & plan\n⚡ 10–12 PM: Deep work (${tasks.filter(t=>!t.done&&t.priority==='high').length} high-priority tasks)\n🍽️ 12–1 PM: Lunch & rest\n🎯 1–3 PM: Meetings & calls\n📝 3–4 PM: Admin & emails\n🔁 4:30 PM: Wrap up & plan tomorrow`;
+  }
+  if(m.includes('focus')||m.includes('priorit')){
+    const p=tasks.filter(t=>!t.done).slice(0,3);
+    return `Your top ${p.length} priorities right now:\n\n${p.map((t,i)=>`${i+1}. [${t.priority.toUpperCase()}] ${t.text}`).join('\n')||'All done! 🎉'}\n\n⏱️ Enable 1-hr Focus Mode to lock in!`;
+  }
+  if(m.includes('progress')||m.includes('productiv')||m.includes('how am')){
+    return `📊 Your productivity snapshot:\n\n✅ Completed: ${tasks.filter(t=>t.done).length}/${tasks.length} tasks\n⏱️ Focus sessions: ${wkSessions}\n☕ Breaks taken: ${breakCt}\n🔥 Score: ${calcScore()}/100\n\n${calcScore()>=75?'Great job! 🎉':'Keep pushing — you\'re building momentum! 💪'}`;
+  }
+  if(m.includes('motivat')||m.includes('inspir'))return motivations[Math.floor(Math.random()*motivations.length)];
+  if(m.includes('tip')||m.includes('advice'))return tips[Math.floor(Math.random()*tips.length)];
+  if(m.includes('break')||m.includes('how many break'))return `☕ You've taken ${breakCt} breaks this session and ${wkBreaks} total this week.\n\n${breakCt<=2?'Good discipline! Keep your breaks short.':'Consider slightly longer focus blocks to reduce breaks.'}`;
+  if(m.includes('task')&&tasks.length>0){
+    const p=tasks.filter(t=>!t.done);
+    return `You have ${p.length} pending tasks.\n\nTop task: "${p[0]?.text||'All done! 🎉'}"\n\nPriority breakdown: ${tasks.filter(t=>!t.done&&t.priority==='high').length} high, ${tasks.filter(t=>!t.done&&t.priority==='medium').length} medium, ${tasks.filter(t=>!t.done&&t.priority==='low').length} low.`;
+  }
+  const fallback=[
+    'Great question! Breaking it into smaller steps usually works best. Want help structuring it? 📋',
+    'Interesting! I\'d suggest time-boxing this — give it a focused slot in your schedule. 📅',
+    'Progress, not perfection! What\'s the tiniest next action you can take right now? 🚀',
+    'I hear you! Try the 5-second rule: count 5-4-3-2-1 and just start. It works! ⚡',
+  ];
+  return fallback[Math.floor(Math.random()*fallback.length)];
+}
+
+function botAppend(id,text){
+  const el=document.getElementById(id); if(!el)return;
+  const d=document.createElement('div');
+  d.className='msg bot'; d.textContent=text; el.appendChild(d);
+  el.scrollTop=el.scrollHeight;
+}
+function userAppend(id,text){
+  const el=document.getElementById(id); if(!el)return;
+  const d=document.createElement('div');
+  d.className='msg user'; d.textContent=text; el.appendChild(d);
+  el.scrollTop=el.scrollHeight;
+}
+
+function miniSend(){
+  const inp=document.getElementById('mini-inp'), text=inp.value.trim(); if(!text)return;
+  inp.value=''; userAppend('mini-msgs',text);
+  setTimeout(()=>botAppend('mini-msgs',getBotReply(text)),750+Math.random()*400);
+}
+function fullSend(){
+  const inp=document.getElementById('full-inp'), text=inp.value.trim(); if(!text)return;
+  inp.value=''; userAppend('full-msgs',text);
+  const t=document.createElement('div'); t.className='msg bot typing'; t.textContent='Nova is thinking…';
+  const el=document.getElementById('full-msgs'); el.appendChild(t); el.scrollTop=el.scrollHeight;
+  setTimeout(()=>{ t.remove(); botAppend('full-msgs',getBotReply(text)); },850+Math.random()*500);
+}
+function quickChat(text){ document.getElementById('mini-inp').value=text; miniSend(); }
+function fullChat(text){ document.getElementById('full-inp').value=text; fullSend(); }
+</script>
+</body>
+</html>
